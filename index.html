@@ -1,0 +1,583 @@
+```html
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مقارن أسعار ملابس المنصورة</title>
+
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial;background:#f4f5f9;margin:0;color:#222}
+header{background:#111827;color:white;padding:25px 15px;text-align:center}
+header h1{margin:0 0 8px}
+.search{text-align:center;padding:22px}
+input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outline:none}
+.search input{width:min(90%,400px)}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;padding:20px;max-width:1200px;margin:auto}
+.card{background:white;padding:15px;border-radius:15px;box-shadow:0 3px 15px #0000000d}
+.card img{width:100%;height:230px;object-fit:cover;border-radius:10px;background:#eee}
+.shop{color:#2563eb;font-weight:bold}
+.price{color:#059669;font-size:22px;font-weight:bold}
+
+.menu-btn{position:fixed;top:15px;right:15px;padding:10px 15px;font-size:23px;border:0;border-radius:10px;cursor:pointer;z-index:1000;background:white}
+#menu{display:none;position:fixed;top:70px;right:15px;background:white;padding:12px;border-radius:12px;box-shadow:0 5px 25px #0003;z-index:1000;width:200px}
+#menu button{width:100%;margin:5px 0;padding:11px;border:0;border-radius:8px;background:#f1f5f9;cursor:pointer;font-size:14px}
+
+/* واجهة العميل */
+#customerPanel{display:none;position:fixed;inset:0;z-index:4000;background:#0f172aee;align-items:center;justify-content:center;padding:16px}
+.customer-card{width:min(100%,430px);background:white;border-radius:22px;padding:28px;box-shadow:0 25px 80px #0005}
+.customer-icon{width:58px;height:58px;border-radius:18px;background:#ede9fe;color:#6d28d9;display:grid;place-items:center;font-size:28px;margin-bottom:16px}
+.customer-card h2{margin:0 0 8px}
+.hint{color:#64748b;line-height:1.7;font-size:14px;margin:0 0 22px}
+.customer-field{margin:15px 0}
+.customer-field label{display:block;font-weight:bold;font-size:14px;margin-bottom:7px}
+.customer-field input{width:100%;background:#f8fafc;padding:13px}
+.customer-actions{display:flex;gap:10px;margin-top:20px}
+.customer-actions button{flex:1;padding:12px;border:0;border-radius:10px;cursor:pointer;font-weight:bold}
+.save-customer{background:#4f46e5;color:white}
+.cancel-customer{background:#eef2f7;color:#334155}
+.customer-note{font-size:12px;color:#64748b;line-height:1.6;margin-top:15px}
+#customerGreeting{display:none;text-align:center;padding:12px;margin:0 auto 12px;background:#ede9fe;color:#5b21b6;border-radius:10px;max-width:500px}
+
+/* لوحة التحكم */
+#adminPanel{display:none;position:fixed;inset:0;z-index:5000;background:#f1f5f9;overflow:auto}
+.admin-header{background:#111827;color:white;padding:20px 25px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.admin-header h2{margin:0;font-size:22px}
+.close-btn{background:#ef4444;color:white;border:0;padding:10px 16px;border-radius:9px;cursor:pointer}
+.admin-container{max-width:1150px;margin:25px auto;padding:0 18px}
+.welcome{margin-bottom:22px}
+.welcome h2{margin-bottom:5px}
+.welcome p{color:#64748b;margin:0}
+.dashboard-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin-bottom:25px}
+.stat-card{background:white;padding:20px;border-radius:14px;box-shadow:0 3px 12px #00000008;border-right:4px solid #6366f1}
+.stat-card small{color:#64748b}
+.stat-card h2{margin:10px 0 0;font-size:28px}
+.admin-grid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,1.4fr);gap:20px;align-items:start}
+.admin-box{background:white;padding:22px;border-radius:15px;box-shadow:0 3px 15px #0000000a}
+.admin-box h3{margin-top:0}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;margin-bottom:7px;font-weight:bold;font-size:14px}
+.form-group input{width:100%;background:#f8fafc}
+.primary-btn{background:#4f46e5;color:white;border:0;padding:12px;width:100%;border-radius:9px;font-size:15px;font-weight:bold;cursor:pointer}
+.products-table{width:100%;border-collapse:collapse;font-size:13px}
+.products-table th,.products-table td{padding:12px 8px;border-bottom:1px solid #eee;text-align:right}
+.products-table th{background:#f8fafc;color:#64748b}
+.delete-btn{background:#fee2e2;color:#dc2626;border:0;padding:7px 10px;border-radius:7px;cursor:pointer}
+.edit-btn{background:#dbeafe;color:#2563eb;border:0;padding:7px 10px;border-radius:7px;cursor:pointer}
+.empty{text-align:center;color:#94a3b8;padding:20px}
+
+@media(max-width:750px){
+.admin-grid{grid-template-columns:1fr}
+.products-table{font-size:11px}
+.products-table th,.products-table td{padding:9px 4px}
+}
+</style>
+</head>
+
+<body>
+
+<button class="menu-btn" onclick="toggleMenu()">☰</button>
+
+<div id="menu">
+<button id="customerMenuBtn" onclick="customerLogin()">👤 تسجيل دخول كعميل</button>
+<button onclick="adminLogin()">🛠️ تسجيل دخول كمبرمج</button>
+<button id="customerLogoutBtn" onclick="customerLogout()" style="display:none">🚪 تسجيل خروج العميل</button>
+</div>
+
+<header>
+<h1>👕 مقارنة أسعار الملابس في المنصورة</h1>
+<p>اعرف أرخص سعر قبل ما تشتري</p>
+</header>
+
+<div id="customerGreeting"></div>
+
+<div class="search">
+<input type="text" id="search" placeholder="ابحث عن منتج أو محل...">
+</div>
+
+<div class="products" id="products"></div>
+
+<!-- واجهة العميل -->
+<div id="customerPanel">
+<div class="customer-card">
+
+<div class="customer-icon">👤</div>
+
+<h2 id="customerTitle">أهلاً بيك في موقعنا</h2>
+
+<p class="hint">
+سجّل بياناتك عشان نقدر نرحب بيك في كل مرة تزور فيها الموقع.
+</p>
+
+<form id="customerForm">
+
+<div class="customer-field">
+<label for="customerName">الاسم</label>
+<input id="customerName" type="text" maxlength="60" placeholder="اكتب اسمك" required>
+</div>
+
+<div class="customer-field">
+<label for="customerPhone">رقم الموبايل</label>
+<input id="customerPhone" type="tel" inputmode="tel" maxlength="20" placeholder="مثال: 01012345678" required>
+</div>
+
+<div class="customer-actions">
+<button class="save-customer" type="submit">حفظ البيانات</button>
+<button class="cancel-customer" type="button" onclick="closeCustomerPanel()">إلغاء</button>
+</div>
+
+</form>
+
+<p class="customer-note">
+بياناتك بتتحفظ على نفس المتصفح والجهاز فقط. مش هتتم مشاركتها مع المحلات من خلال الموقع.
+</p>
+
+</div>
+</div>
+
+<!-- لوحة التحكم -->
+<div id="adminPanel">
+
+<div class="admin-header">
+<h2>🛠️ لوحة تحكم المتجر</h2>
+<button class="close-btn" onclick="closeAdmin()">إغلاق ✕</button>
+</div>
+
+<div class="admin-container">
+
+<div class="welcome">
+<h2>أهلاً بك يا مدير الموقع 👋</h2>
+<p>من هنا تقدر تدير المحلات والمنتجات والأسعار.</p>
+</div>
+
+<div class="dashboard-stats">
+
+<div class="stat-card">
+<small>إجمالي المنتجات</small>
+<h2 id="totalProducts">0</h2>
+</div>
+
+<div class="stat-card">
+<small>عدد المحلات</small>
+<h2 id="totalShops">0</h2>
+</div>
+
+<div class="stat-card">
+<small>أقل سعر</small>
+<h2 id="lowestPrice">0</h2>
+</div>
+
+</div>
+
+<div class="admin-grid">
+
+<div class="admin-box">
+<h3>➕ إضافة محل ومنتج</h3>
+
+<form id="addForm">
+
+<div class="form-group">
+<label>اسم المحل</label>
+<input id="shopName" type="text" placeholder="مثال: Fashion Store" required>
+</div>
+
+<div class="form-group">
+<label>اسم المنتج</label>
+<input id="productName" type="text" placeholder="مثال: بنطلون جينز" required>
+</div>
+
+<div class="form-group">
+<label>السعر بالجنيه</label>
+<input id="productPrice" type="number" min="1" placeholder="مثال: 450" required>
+</div>
+
+<div class="form-group">
+<label>رابط صورة المنتج (اختياري)</label>
+<input id="productImage" type="url" placeholder="https://example.com/image.jpg">
+</div>
+
+<button class="primary-btn" type="submit">إضافة المنتج والمحل</button>
+
+</form>
+</div>
+
+<div class="admin-box">
+<h3>📦 إدارة المنتجات</h3>
+
+<div style="overflow-x:auto">
+<table class="products-table">
+
+<thead>
+<tr>
+<th>المنتج</th>
+<th>المحل</th>
+<th>السعر</th>
+<th>تعديل</th>
+<th>حذف</th>
+</tr>
+</thead>
+
+<tbody id="adminProducts"></tbody>
+
+</table>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<script>
+
+const ADMIN_PASSWORD="Mo2Mo2Sh2Mo2";
+
+const defaultProducts=[
+{id:1,name:"بنطلون جينز أزرق",shop:"Fashion Store",price:450,image:"https://via.placeholder.com/400x300?text=Jeans"},
+{id:2,name:"بنطلون جينز أزرق",shop:"Star Men",price:390,image:"https://via.placeholder.com/400x300?text=Jeans"},
+{id:3,name:"هودي أسود",shop:"Active Wear",price:520,image:"https://via.placeholder.com/400x300?text=Hoodie"},
+{id:4,name:"هودي أسود",shop:"Fashion House",price:460,image:"https://via.placeholder.com/400x300?text=Hoodie"}
+];
+
+let products;
+
+try{
+products=JSON.parse(localStorage.getItem("mansouraProducts"));
+if(!Array.isArray(products))products=null;
+}catch(e){
+products=null;
+}
+
+if(!products){
+products=defaultProducts;
+saveProducts();
+}
+
+function saveProducts(){
+localStorage.setItem("mansouraProducts",JSON.stringify(products));
+}
+
+function escapeHTML(v){
+return String(v).replace(/[&<>"']/g,c=>({
+"&":"&amp;",
+"<":"&lt;",
+">":"&gt;",
+'"':"&quot;",
+"'":"&#39;"
+}[c]));
+}
+
+/* بيانات العميل */
+
+function getCustomer(){
+try{
+return JSON.parse(localStorage.getItem("mansouraCustomer"))||null;
+}catch(e){
+return null;
+}
+}
+
+function updateCustomerUI(){
+
+const customer=getCustomer();
+const greeting=document.getElementById("customerGreeting");
+
+document.getElementById("customerMenuBtn").textContent=
+customer?"👤 حسابي":"👤 تسجيل دخول كعميل";
+
+document.getElementById("customerLogoutBtn").style.display=
+customer?"block":"none";
+
+if(customer&&!sessionStorage.getItem("mansouraLoggedOut")){
+greeting.textContent=`أهلاً بيك يا ${customer.name} 👋`;
+greeting.style.display="block";
+}else{
+greeting.style.display="none";
+}
+
+}
+
+function customerLogin(){
+
+document.getElementById("menu").style.display="none";
+
+const customer=getCustomer();
+
+document.getElementById("customerTitle").textContent=
+customer?"تعديل بيانات حسابك":"أهلاً بيك في موقعنا";
+
+document.getElementById("customerName").value=customer?.name||"";
+document.getElementById("customerPhone").value=customer?.phone||"";
+
+document.getElementById("customerPanel").style.display="flex";
+
+}
+
+function closeCustomerPanel(){
+document.getElementById("customerPanel").style.display="none";
+}
+
+document.getElementById("customerForm").addEventListener("submit",function(e){
+
+e.preventDefault();
+
+const name=document.getElementById("customerName").value.trim();
+const phone=document.getElementById("customerPhone").value.trim();
+
+if(name.length<2){
+alert("اكتب اسم صحيح (حرفين على الأقل).");
+return;
+}
+
+if(phone.replace(/\D/g,"").length<8){
+alert("من فضلك اكتب رقم موبايل صحيح.");
+return;
+}
+
+localStorage.setItem("mansouraCustomer",JSON.stringify({name,phone}));
+
+sessionStorage.removeItem("mansouraLoggedOut");
+
+updateCustomerUI();
+closeCustomerPanel();
+
+alert("تم حفظ بياناتك بنجاح ✅");
+
+});
+
+function customerLogout(){
+
+if(!confirm("تسجيل الخروج؟ بياناتك هتفضل محفوظة وتقدر تدخل تاني."))return;
+
+sessionStorage.setItem("mansouraLoggedOut","yes");
+
+updateCustomerUI();
+
+document.getElementById("menu").style.display="none";
+
+}
+
+/* القائمة */
+
+function toggleMenu(){
+
+const menu=document.getElementById("menu");
+
+menu.style.display=menu.style.display==="block"?"none":"block";
+
+}
+
+/* دخول المبرمج */
+
+function adminLogin(){
+
+const pass=prompt("ادخل باسورد المبرمج");
+
+if(pass===ADMIN_PASSWORD){
+
+document.getElementById("adminPanel").style.display="block";
+document.getElementById("menu").style.display="none";
+
+updateDashboard();
+
+}else if(pass!==null){
+
+alert("الباسورد غير صحيح");
+
+}
+
+}
+
+function closeAdmin(){
+document.getElementById("adminPanel").style.display="none";
+}
+
+/* عرض المنتجات */
+
+function renderProducts(){
+
+const box=document.getElementById("products");
+
+box.innerHTML="";
+
+products.forEach(p=>{
+
+const card=document.createElement("div");
+card.className="card";
+
+const img=document.createElement("img");
+img.src=p.image||"https://via.placeholder.com/400x300?text=Product";
+img.alt=p.name;
+
+img.onerror=()=>img.src="https://via.placeholder.com/400x300?text=Product";
+
+const h=document.createElement("h2");
+h.textContent=p.name;
+
+const s=document.createElement("p");
+s.className="shop";
+s.textContent="محل "+p.shop;
+
+const price=document.createElement("p");
+price.className="price";
+price.textContent=Number(p.price).toLocaleString("ar-EG")+" جنيه";
+
+card.append(img,h,s,price);
+
+box.append(card);
+
+});
+
+updateDashboard();
+applySearch();
+
+}
+
+function applySearch(){
+
+const v=document.getElementById("search").value.toLowerCase();
+
+document.querySelectorAll(".card").forEach(c=>{
+c.style.display=c.innerText.toLowerCase().includes(v)?"block":"none";
+});
+
+}
+
+document.getElementById("search").addEventListener("input",applySearch);
+
+/* إضافة منتج */
+
+document.getElementById("addForm").addEventListener("submit",function(e){
+
+e.preventDefault();
+
+const shop=document.getElementById("shopName").value.trim();
+const name=document.getElementById("productName").value.trim();
+const price=Number(document.getElementById("productPrice").value);
+const image=document.getElementById("productImage").value.trim();
+
+if(!shop||!name||!Number.isFinite(price)||price<=0){
+alert("من فضلك أدخل البيانات بشكل صحيح");
+return;
+}
+
+products.push({
+id:Date.now(),
+shop,
+name,
+price,
+image:image||"https://via.placeholder.com/400x300?text=Product"
+});
+
+saveProducts();
+renderProducts();
+
+this.reset();
+
+alert("تمت إضافة المنتج والمحل بنجاح ✅");
+
+});
+
+/* تعديل المنتج */
+
+function editProduct(id){
+
+const p=products.find(x=>x.id===id);
+
+if(!p)return;
+
+let shop=prompt("تعديل اسم المحل:",p.shop);
+if(shop===null)return;
+
+let name=prompt("تعديل اسم المنتج:",p.name);
+if(name===null)return;
+
+let price=prompt("تعديل السعر:",p.price);
+if(price===null)return;
+
+let image=prompt("تعديل رابط الصورة:",p.image);
+if(image===null)return;
+
+shop=shop.trim();
+name=name.trim();
+price=Number(price);
+
+if(!shop||!name||!Number.isFinite(price)||price<=0){
+alert("البيانات غير صحيحة");
+return;
+}
+
+p.shop=shop;
+p.name=name;
+p.price=price;
+p.image=image.trim()||p.image;
+
+saveProducts();
+renderProducts();
+
+alert("تم تعديل المنتج بنجاح ✅");
+
+}
+
+/* حذف المنتج */
+
+function deleteProduct(id){
+
+if(!confirm("هل أنت متأكد من حذف المنتج؟"))return;
+
+products=products.filter(p=>p.id!==id);
+
+saveProducts();
+renderProducts();
+
+}
+
+/* تحديث لوحة التحكم */
+
+function updateDashboard(){
+
+document.getElementById("totalProducts").textContent=products.length;
+
+document.getElementById("totalShops").textContent=
+[...new Set(products.map(p=>p.shop))].length;
+
+document.getElementById("lowestPrice").textContent=
+(products.length?Math.min(...products.map(p=>Number(p.price))):0)+" ج";
+
+const tbody=document.getElementById("adminProducts");
+
+tbody.innerHTML="";
+
+if(!products.length){
+
+tbody.innerHTML='<tr><td colspan="5" class="empty">لا توجد منتجات حتى الآن</td></tr>';
+
+return;
+
+}
+
+products.forEach(p=>{
+
+const tr=document.createElement("tr");
+
+tr.innerHTML=`
+<td>${escapeHTML(p.name)}</td>
+<td>${escapeHTML(p.shop)}</td>
+<td>${Number(p.price)} ج</td>
+<td><button class="edit-btn" onclick="editProduct(${p.id})">تعديل</button></td>
+<td><button class="delete-btn" onclick="deleteProduct(${p.id})">حذف</button></td>
+`;
+
+tbody.append(tr);
+
+});
+
+}
+
+renderProducts();
+updateCustomerUI();
+
+</script>
+</body>
+</html>
+```
