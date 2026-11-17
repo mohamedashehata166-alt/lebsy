@@ -1,4 +1,4 @@
-```html
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -60,6 +60,7 @@ input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outlin
 .form-group label{display:block;margin-bottom:7px;font-weight:bold;font-size:14px}
 .form-group input{width:100%;background:#f8fafc}
 .primary-btn{background:#4f46e5;color:white;border:0;padding:12px;width:100%;border-radius:9px;font-size:15px;font-weight:bold;cursor:pointer}
+.primary-btn:disabled{background:#94a3b8;cursor:not-allowed}
 .products-table{width:100%;border-collapse:collapse;font-size:13px}
 .products-table th,.products-table td{padding:12px 8px;border-bottom:1px solid #eee;text-align:right}
 .products-table th{background:#f8fafc;color:#64748b}
@@ -96,7 +97,9 @@ input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outlin
 <input type="text" id="search" placeholder="ابحث عن منتج أو محل...">
 </div>
 
-<div class="products" id="products"></div>
+<div class="products" id="products">
+<p class="empty">جاري تحميل المنتجات...</p>
+</div>
 
 <!-- واجهة العميل -->
 <div id="customerPanel">
@@ -148,7 +151,7 @@ input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outlin
 
 <div class="welcome">
 <h2>أهلاً بك يا مدير الموقع 👋</h2>
-<p>من هنا تقدر تدير المحلات والمنتجات والأسعار.</p>
+<p>أي إضافة أو تعديل هنا سيظهر تلقائياً لجميع المستخدمين.</p>
 </div>
 
 <div class="dashboard-stats">
@@ -197,7 +200,7 @@ input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outlin
 <input id="productImage" type="url" placeholder="https://example.com/image.jpg">
 </div>
 
-<button class="primary-btn" type="submit">إضافة المنتج والمحل</button>
+<button class="primary-btn" id="submitBtn" type="submit">إضافة المنتج والمحل</button>
 
 </form>
 </div>
@@ -229,355 +232,331 @@ input{padding:12px;border-radius:9px;border:1px solid #ddd;font-size:15px;outlin
 </div>
 
 <script>
+const ADMIN_PASSWORD = "Mo2Mo2Sh2Mo2";
 
-const ADMIN_PASSWORD="Mo2Mo2Sh2Mo2";
+// === إعدادات جيت هب ===
+const GITHUB_OWNER = "mohamedashehata166-alt";
+const GITHUB_REPO = "hedomy";
+const GITHUB_FILE = "products.json";
+const GITHUB_TOKEN = "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"; 
+// ===============================================================
 
-const defaultProducts=[
-{id:1,name:"بنطلون جينز أزرق",shop:"Fashion Store",price:450,image:"https://via.placeholder.com/400x300?text=Jeans"},
-{id:2,name:"بنطلون جينز أزرق",shop:"Star Men",price:390,image:"https://via.placeholder.com/400x300?text=Jeans"},
-{id:3,name:"هودي أسود",shop:"Active Wear",price:520,image:"https://via.placeholder.com/400x300?text=Hoodie"},
-{id:4,name:"هودي أسود",shop:"Fashion House",price:460,image:"https://via.placeholder.com/400x300?text=Hoodie"}
-];
+let products = [];
+let fileSha = ""; 
 
-let products;
+// جلب البيانات بطريقة مباشرة وصحيحة من جيت هب
+async function loadProducts() {
+  try {
+    const url = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${GITHUB_FILE}?t=${Date.now()}`;
+    const res = await fetch(url);
+    
+    if (!res.ok) throw new Error("فشل تحميل البيانات");
+    
+    products = await res.json();
+    
+    // للحصول على الـ SHA الخاص بملف الـ JSON للتعديل لاحقاً عند الحفظ
+    try {
+      const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE}`;
+      const apiRes = await fetch(apiUrl, {
+        headers: {
+          "Authorization": `Bearer ${GITHUB_TOKEN}`,
+          "Accept": "application/vnd.github.v3+json"
+        }
+      });
+      if(apiRes.ok) {
+        const apiData = await apiRes.json();
+        fileSha = apiData.sha;
+      }
+    } catch(e) {}
 
-try{
-products=JSON.parse(localStorage.getItem("mansouraProducts"));
-if(!Array.isArray(products))products=null;
-}catch(e){
-products=null;
+    renderProducts();
+  } catch (err) {
+    console.error(err);
+    document.getElementById("products").innerHTML = `<p class="empty" style="color:red;">حدث خطأ في تحميل البيانات. تأكد من اتصال الإنترنت أو صحة الملف.</p>`;
+  }
 }
 
-if(!products){
-products=defaultProducts;
-saveProducts();
-}
+// حفظ البيانات على جيت هب لتظهر للجميع
+async function saveProductsToGitHub() {
+  const submitBtn = document.getElementById("submitBtn");
+  if(submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "جاري الحفظ للجميع...";
+  }
 
-function saveProducts(){
-localStorage.setItem("mansouraProducts",JSON.stringify(products));
+  try {
+    const jsonString = JSON.stringify(products, null, 2);
+    const encodedContent = btoa(unescape(encodeURIComponent(jsonString)));
+
+    const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE}`;
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${GITHUB_TOKEN}`,
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "تحديث المنتجات من لوحة التحكم",
+        content: encodedContent,
+        sha: fileSha
+      })
+    });
+
+    if (!res.ok) throw new Error("فشل الحفظ");
+    
+    const data = await res.json();
+    fileSha = data.content.sha;
+    renderProducts();
+    return true;
+  } catch (err) {
+    alert("حدث خطأ أثناء الحفظ. تأكد من صحة التوكن.");
+    console.error(err);
+    return false;
+  } finally {
+    if(submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "إضافة المنتج والمحل";
+    }
+  }
 }
 
 function escapeHTML(v){
-return String(v).replace(/[&<>"']/g,c=>({
-"&":"&amp;",
-"<":"&lt;",
-">":"&gt;",
-'"':"&quot;",
-"'":"&#39;"
-}[c]));
+  return String(v).replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
 }
 
 /* بيانات العميل */
-
 function getCustomer(){
-try{
-return JSON.parse(localStorage.getItem("mansouraCustomer"))||null;
-}catch(e){
-return null;
-}
+  try{ return JSON.parse(localStorage.getItem("mansouraCustomer"))||null; }
+  catch(e){ return null; }
 }
 
 function updateCustomerUI(){
+  const customer=getCustomer();
+  const greeting=document.getElementById("customerGreeting");
+  document.getElementById("customerMenuBtn").textContent = customer?"👤 حسابي":"👤 تسجيل دخول كعميل";
+  document.getElementById("customerLogoutBtn").style.display = customer?"block":"none";
 
-const customer=getCustomer();
-const greeting=document.getElementById("customerGreeting");
-
-document.getElementById("customerMenuBtn").textContent=
-customer?"👤 حسابي":"👤 تسجيل دخول كعميل";
-
-document.getElementById("customerLogoutBtn").style.display=
-customer?"block":"none";
-
-if(customer&&!sessionStorage.getItem("mansouraLoggedOut")){
-greeting.textContent=`أهلاً بيك يا ${customer.name} 👋`;
-greeting.style.display="block";
-}else{
-greeting.style.display="none";
-}
-
+  if(customer&&!sessionStorage.getItem("mansouraLoggedOut")){
+    greeting.textContent=`أهلاً بيك يا ${customer.name} 👋`;
+    greeting.style.display="block";
+  }else{
+    greeting.style.display="none";
+  }
 }
 
 function customerLogin(){
-
-document.getElementById("menu").style.display="none";
-
-const customer=getCustomer();
-
-document.getElementById("customerTitle").textContent=
-customer?"تعديل بيانات حسابك":"أهلاً بيك في موقعنا";
-
-document.getElementById("customerName").value=customer?.name||"";
-document.getElementById("customerPhone").value=customer?.phone||"";
-
-document.getElementById("customerPanel").style.display="flex";
-
+  document.getElementById("menu").style.display="none";
+  const customer=getCustomer();
+  document.getElementById("customerTitle").textContent = customer?"تعديل بيانات حسابك":"أهلاً بيك في موقعنا";
+  document.getElementById("customerName").value=customer?.name||"";
+  document.getElementById("customerPhone").value=customer?.phone||"";
+  document.getElementById("customerPanel").style.display="flex";
 }
 
 function closeCustomerPanel(){
-document.getElementById("customerPanel").style.display="none";
+  document.getElementById("customerPanel").style.display="none";
 }
 
 document.getElementById("customerForm").addEventListener("submit",function(e){
+  e.preventDefault();
+  const name=document.getElementById("customerName").value.trim();
+  const phone=document.getElementById("customerPhone").value.trim();
 
-e.preventDefault();
+  if(name.length<2){ alert("اكتب اسم صحيح (حرفين على الأقل)."); return; }
+  if(phone.replace(/\D/g,"").length<8){ alert("من فضلك اكتب رقم موبايل صحيح."); return; }
 
-const name=document.getElementById("customerName").value.trim();
-const phone=document.getElementById("customerPhone").value.trim();
-
-if(name.length<2){
-alert("اكتب اسم صحيح (حرفين على الأقل).");
-return;
-}
-
-if(phone.replace(/\D/g,"").length<8){
-alert("من فضلك اكتب رقم موبايل صحيح.");
-return;
-}
-
-localStorage.setItem("mansouraCustomer",JSON.stringify({name,phone}));
-
-sessionStorage.removeItem("mansouraLoggedOut");
-
-updateCustomerUI();
-closeCustomerPanel();
-
-alert("تم حفظ بياناتك بنجاح ✅");
-
+  localStorage.setItem("mansouraCustomer",JSON.stringify({name,phone}));
+  sessionStorage.removeItem("mansouraLoggedOut");
+  updateCustomerUI();
+  closeCustomerPanel();
+  alert("تم حفظ بياناتك بنجاح ✅");
 });
 
 function customerLogout(){
-
-if(!confirm("تسجيل الخروج؟ بياناتك هتفضل محفوظة وتقدر تدخل تاني."))return;
-
-sessionStorage.setItem("mansouraLoggedOut","yes");
-
-updateCustomerUI();
-
-document.getElementById("menu").style.display="none";
-
+  if(!confirm("تسجيل الخروج؟ بياناتك هتفضل محفوظة وتقدر تدخل تاني."))return;
+  sessionStorage.setItem("mansouraLoggedOut","yes");
+  updateCustomerUI();
+  document.getElementById("menu").style.display="none";
 }
 
 /* القائمة */
-
 function toggleMenu(){
-
-const menu=document.getElementById("menu");
-
-menu.style.display=menu.style.display==="block"?"none":"block";
-
+  const menu=document.getElementById("menu");
+  menu.style.display=menu.style.display==="block"?"none":"block";
 }
 
 /* دخول المبرمج */
-
 function adminLogin(){
-
-const pass=prompt("ادخل باسورد المبرمج");
-
-if(pass===ADMIN_PASSWORD){
-
-document.getElementById("adminPanel").style.display="block";
-document.getElementById("menu").style.display="none";
-
-updateDashboard();
-
-}else if(pass!==null){
-
-alert("الباسورد غير صحيح");
-
-}
-
+  const pass=prompt("ادخل باسورد المبرمج");
+  if(pass===ADMIN_PASSWORD){
+    document.getElementById("adminPanel").style.display="block";
+    document.getElementById("menu").style.display="none";
+    updateDashboard();
+  }else if(pass!==null){
+    alert("الباسورد غير صحيح");
+  }
 }
 
 function closeAdmin(){
-document.getElementById("adminPanel").style.display="none";
+  document.getElementById("adminPanel").style.display="none";
 }
 
 /* عرض المنتجات */
-
 function renderProducts(){
+  const box=document.getElementById("products");
+  box.innerHTML="";
 
-const box=document.getElementById("products");
+  if(!products.length){
+    box.innerHTML='<p class="empty">لا توجد منتجات متاحة حالياً</p>';
+  }
 
-box.innerHTML="";
+  products.forEach(p=>{
+    const card=document.createElement("div");
+    card.className="card";
 
-products.forEach(p=>{
+    const img=document.createElement("img");
+    img.src=p.image||"https://via.placeholder.com/400x300?text=Product";
+    img.alt=p.name;
+    img.onerror=()=>img.src="https://via.placeholder.com/400x300?text=Product";
 
-const card=document.createElement("div");
-card.className="card";
+    const h=document.createElement("h2");
+    h.textContent=p.name;
 
-const img=document.createElement("img");
-img.src=p.image||"https://via.placeholder.com/400x300?text=Product";
-img.alt=p.name;
+    const s=document.createElement("p");
+    s.className="shop";
+    s.textContent="محل "+p.shop;
 
-img.onerror=()=>img.src="https://via.placeholder.com/400x300?text=Product";
+    const price=document.createElement("p");
+    price.className="price";
+    price.textContent=Number(p.price).toLocaleString("ar-EG")+" جنيه";
 
-const h=document.createElement("h2");
-h.textContent=p.name;
+    card.append(img,h,s,price);
+    box.append(card);
+  });
 
-const s=document.createElement("p");
-s.className="shop";
-s.textContent="محل "+p.shop;
-
-const price=document.createElement("p");
-price.className="price";
-price.textContent=Number(p.price).toLocaleString("ar-EG")+" جنيه";
-
-card.append(img,h,s,price);
-
-box.append(card);
-
-});
-
-updateDashboard();
-applySearch();
-
+  updateDashboard();
+  applySearch();
 }
 
 function applySearch(){
-
-const v=document.getElementById("search").value.toLowerCase();
-
-document.querySelectorAll(".card").forEach(c=>{
-c.style.display=c.innerText.toLowerCase().includes(v)?"block":"none";
-});
-
+  const v=document.getElementById("search").value.toLowerCase();
+  document.querySelectorAll(".card").forEach(c=>{
+    c.style.display=c.innerText.toLowerCase().includes(v)?"block":"none";
+  });
 }
 
 document.getElementById("search").addEventListener("input",applySearch);
 
 /* إضافة منتج */
+document.getElementById("addForm").addEventListener("submit",async function(e){
+  e.preventDefault();
 
-document.getElementById("addForm").addEventListener("submit",function(e){
+  const shop=document.getElementById("shopName").value.trim();
+  const name=document.getElementById("productName").value.trim();
+  const price=Number(document.getElementById("productPrice").value);
+  const image=document.getElementById("productImage").value.trim();
 
-e.preventDefault();
+  if(!shop||!name||!Number.isFinite(price)||price<=0){
+    alert("من فضلك أدخل البيانات بشكل صحيح");
+    return;
+  }
 
-const shop=document.getElementById("shopName").value.trim();
-const name=document.getElementById("productName").value.trim();
-const price=Number(document.getElementById("productPrice").value);
-const image=document.getElementById("productImage").value.trim();
+  await loadProducts();
 
-if(!shop||!name||!Number.isFinite(price)||price<=0){
-alert("من فضلك أدخل البيانات بشكل صحيح");
-return;
-}
+  products.push({
+    id:Date.now(),
+    shop,
+    name,
+    price,
+    image:image||"https://via.placeholder.com/400x300?text=Product"
+  });
 
-products.push({
-id:Date.now(),
-shop,
-name,
-price,
-image:image||"https://via.placeholder.com/400x300?text=Product"
-});
-
-saveProducts();
-renderProducts();
-
-this.reset();
-
-alert("تمت إضافة المنتج والمحل بنجاح ✅");
-
+  const saved = await saveProductsToGitHub();
+  if(saved) {
+    this.reset();
+    alert("تمت إضافة المنتج والمحل بنجاح وسيظهر عند الجميع ✅");
+  }
 });
 
 /* تعديل المنتج */
+async function editProduct(id){
+  const p=products.find(x=>x.id===id);
+  if(!p)return;
 
-function editProduct(id){
+  let shop=prompt("تعديل اسم المحل:",p.shop);
+  if(shop===null)return;
 
-const p=products.find(x=>x.id===id);
+  let name=prompt("تعديل اسم المنتج:",p.name);
+  if(name===null)return;
 
-if(!p)return;
+  let price=prompt("تعديل السعر:",p.price);
+  if(price===null)return;
 
-let shop=prompt("تعديل اسم المحل:",p.shop);
-if(shop===null)return;
+  let image=prompt("تعديل رابط الصورة:",p.image);
+  if(image===null)return;
 
-let name=prompt("تعديل اسم المنتج:",p.name);
-if(name===null)return;
+  shop=shop.trim();
+  name=name.trim();
+  price=Number(price);
 
-let price=prompt("تعديل السعر:",p.price);
-if(price===null)return;
+  if(!shop||!name||!Number.isFinite(price)||price<=0){
+    alert("البيانات غير صحيحة");
+    return;
+  }
 
-let image=prompt("تعديل رابط الصورة:",p.image);
-if(image===null)return;
+  p.shop=shop;
+  p.name=name;
+  p.price=price;
+  p.image=image.trim()||p.image;
 
-shop=shop.trim();
-name=name.trim();
-price=Number(price);
-
-if(!shop||!name||!Number.isFinite(price)||price<=0){
-alert("البيانات غير صحيحة");
-return;
-}
-
-p.shop=shop;
-p.name=name;
-p.price=price;
-p.image=image.trim()||p.image;
-
-saveProducts();
-renderProducts();
-
-alert("تم تعديل المنتج بنجاح ✅");
-
+  const saved = await saveProductsToGitHub();
+  if(saved) alert("تم تعديل المنتج بنجاح للجميع ✅");
 }
 
 /* حذف المنتج */
+async function deleteProduct(id){
+  if(!confirm("هل أنت متأكد من حذف المنتج؟ سيُحذف من عند الجميع."))return;
 
-function deleteProduct(id){
+  await loadProducts();
+  products=products.filter(p=>p.id!==id);
 
-if(!confirm("هل أنت متأكد من حذف المنتج؟"))return;
-
-products=products.filter(p=>p.id!==id);
-
-saveProducts();
-renderProducts();
-
+  const saved = await saveProductsToGitHub();
+  if(saved) alert("تم الحذف بنجاح ✅");
 }
 
 /* تحديث لوحة التحكم */
-
 function updateDashboard(){
+  document.getElementById("totalProducts").textContent=products.length;
+  document.getElementById("totalShops").textContent=[...new Set(products.map(p=>p.shop))].length;
+  document.getElementById("lowestPrice").textContent=(products.length?Math.min(...products.map(p=>Number(p.price))):0)+" ج";
 
-document.getElementById("totalProducts").textContent=products.length;
+  const tbody=document.getElementById("adminProducts");
+  tbody.innerHTML="";
 
-document.getElementById("totalShops").textContent=
-[...new Set(products.map(p=>p.shop))].length;
+  if(!products.length){
+    tbody.innerHTML='<tr><td colspan="5" class="empty">لا توجد منتجات حتى الآن</td></tr>';
+    return;
+  }
 
-document.getElementById("lowestPrice").textContent=
-(products.length?Math.min(...products.map(p=>Number(p.price))):0)+" ج";
-
-const tbody=document.getElementById("adminProducts");
-
-tbody.innerHTML="";
-
-if(!products.length){
-
-tbody.innerHTML='<tr><td colspan="5" class="empty">لا توجد منتجات حتى الآن</td></tr>';
-
-return;
-
+  products.forEach(p=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+    <td>${escapeHTML(p.name)}</td>
+    <td>${escapeHTML(p.shop)}</td>
+    <td>${Number(p.price)} ج</td>
+    <td><button class="edit-btn" onclick="editProduct(${p.id})">تعديل</button></td>
+    <td><button class="delete-btn" onclick="deleteProduct(${p.id})">حذف</button></td>
+    `;
+    tbody.append(tr);
+  });
 }
 
-products.forEach(p=>{
-
-const tr=document.createElement("tr");
-
-tr.innerHTML=`
-<td>${escapeHTML(p.name)}</td>
-<td>${escapeHTML(p.shop)}</td>
-<td>${Number(p.price)} ج</td>
-<td><button class="edit-btn" onclick="editProduct(${p.id})">تعديل</button></td>
-<td><button class="delete-btn" onclick="deleteProduct(${p.id})">حذف</button></td>
-`;
-
-tbody.append(tr);
-
-});
-
-}
-
-renderProducts();
+// تشغيل الموقع
+loadProducts();
 updateCustomerUI();
-
 </script>
 </body>
 </html>
-```
